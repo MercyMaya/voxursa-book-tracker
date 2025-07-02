@@ -1,18 +1,21 @@
 /* ------------------------------------------------------------------ *
- *  Global API helper layer                                           *
+ *  Configuration                                                     *
  * ------------------------------------------------------------------ */
 
-/** Root of the remote PHP API (exported so others can import) */
+/** Remote PHP API root */
 export const API_BASE = 'https://voxursa.com/booktracker/api';
 
 /* ------------------------------------------------------------------ *
- *  Types                                                             *
+ *  Generic JWT-aware fetch type                                      *
  * ------------------------------------------------------------------ */
 export type AuthFetch = <T = any>(
   path: string,
   opts?: RequestInit,
 ) => Promise<T>;
 
+/* ------------------------------------------------------------------ *
+ *  Data models                                                       *
+ * ------------------------------------------------------------------ */
 export type UserBook = {
   id: number;
   book_id: number;
@@ -27,14 +30,18 @@ export type UserBook = {
 };
 
 /* ------------------------------------------------------------------ *
- *  Authentication                                                    *
+ *  Authentication helpers                                            *
  * ------------------------------------------------------------------ */
-export async function login(email: string, password: string): Promise<string> {
+export async function login(
+  email: string,
+  password: string,
+): Promise<string> {
   const res = await fetch(`${API_BASE}/login.php`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
+
   if (!res.ok) throw new Error((await res.json()).error);
   return (await res.json()).token as string;
 }
@@ -51,9 +58,7 @@ export async function register(
   if (!res.ok) throw new Error((await res.json()).error);
 }
 
-/**
- * Factory: returns a fetch wrapper that auto-attaches the JWT.
- */
+/** Factory: returns fetch wrapper that auto-adds JWT and JSON handling */
 export function makeAuthFetch(token: string | null): AuthFetch {
   return async function authFetch<T = any>(
     path: string,
@@ -67,13 +72,14 @@ export function makeAuthFetch(token: string | null): AuthFetch {
         ...opts.headers,
       },
     });
+
     if (!res.ok) throw new Error((await res.json()).error);
     return res.json() as Promise<T>;
   };
 }
 
 /* ------------------------------------------------------------------ *
- *  Book-shelf endpoints                                              *
+ *  Bookshelf endpoints                                               *
  * ------------------------------------------------------------------ */
 
 export async function fetchUserBooks(
@@ -87,10 +93,16 @@ export async function addBook(
   title: string,
   author: string,
   pages: number,
+  cover: string | null,
 ): Promise<void> {
   await authFetch('/books/add.php', {
     method: 'POST',
-    body: JSON.stringify({ title, author, total_pages: pages }),
+    body: JSON.stringify({
+      title,
+      author,
+      total_pages: pages,
+      cover_url: cover,
+    }),
   });
 }
 
@@ -111,9 +123,8 @@ export async function deleteUserBook(
   await authFetch(`/books/delete.php?id=${id}`, { method: 'DELETE' });
 }
 
-
 /* ------------------------------------------------------------------ *
- *  Google Books lookup helpers                                       *
+ *  Google Books lookup (autocomplete)                                *
  * ------------------------------------------------------------------ */
 
 export type BookCandidate = {
@@ -126,8 +137,7 @@ export type BookCandidate = {
 const G_API = 'https://www.googleapis.com/books/v1/volumes';
 
 /**
- * Live search against Google Books (10 results).
- * Requires env var VITE_GBOOKS_KEY.
+ * Live search (maxResults = 10).  Requires env var VITE_GBOOKS_KEY.
  */
 export async function searchGoogleBooks(
   query: string,
