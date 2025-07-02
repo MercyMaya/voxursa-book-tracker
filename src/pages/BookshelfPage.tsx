@@ -4,16 +4,23 @@ import {
   addBook,
   updateUserBook,
   deleteUserBook,
-  UserBook,
 } from '../api';
+import type { UserBook } from '../api';
 import { AuthContext } from '../contexts/AuthContext';
+
+/* ------------------------------------------------------------------ *
+ *  Bookshelf Page                                                    *
+ * ------------------------------------------------------------------ */
 
 export default function BookshelfPage() {
   const { authFetch } = useContext(AuthContext);
+
   const [books, setBooks] = useState<UserBook[]>([]);
   const [form, setForm] = useState({ title: '', author: '', pages: 0 });
   const [err, setErr] = useState<string | null>(null);
 
+  /* ----------------------------------------------------------------
+   *  Load/re-load whenever authFetch updates (token ready)          */
   async function load() {
     try {
       setBooks(await fetchUserBooks(authFetch));
@@ -21,44 +28,16 @@ export default function BookshelfPage() {
       setErr(e.message);
     }
   }
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, [authFetch]);          // ← key fix: rerun after token arrives
+  /* ---------------------------------------------------------------- */
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     await addBook(authFetch, form.title, form.author, form.pages);
     setForm({ title: '', author: '', pages: 0 });
     load();
-  }
-
-  function renderSection(label: string, status: UserBook['status']) {
-    const list = books.filter((b) => b.status === status);
-    return (
-      <div>
-        <h2 className="mb-2 text-lg font-bold">{label}</h2>
-        {list.length === 0 && <p className="mb-4 text-sm text-gray-500">None</p>}
-        <ul className="space-y-3">
-          {list.map((b) => (
-            <li key={b.id} className="rounded border p-3">
-              <div className="flex items-center justify-between">
-                <span>
-                  <strong>{b.title}</strong> – {b.author}
-                </span>
-                <small className="text-xs text-gray-500">{b.status}</small>
-              </div>
-              {b.status === 'READING' && (
-                <ProgressInput book={b} onSave={updateAndReload} />
-              )}
-              <button
-                className="mt-2 rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
-                onClick={() => deleteAndReload(b.id)}
-              >
-                Remove
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    );
   }
 
   async function updateAndReload(payload: Partial<UserBook> & { id: number }) {
@@ -70,6 +49,41 @@ export default function BookshelfPage() {
     load();
   }
 
+  function renderSection(label: string, status: UserBook['status']) {
+    const list = books.filter((b) => b.status === status);
+    return (
+      <div>
+        <h2 className="mb-2 text-lg font-bold">{label}</h2>
+        {list.length === 0 && (
+          <p className="mb-4 text-sm text-gray-500">None</p>
+        )}
+        <ul className="space-y-3">
+          {list.map((b) => (
+            <li key={b.id} className="rounded border p-3">
+              <div className="flex items-center justify-between">
+                <span>
+                  <strong>{b.title}</strong> – {b.author}
+                </span>
+                <small className="text-xs text-gray-500">{b.status}</small>
+              </div>
+
+              {b.status === 'READING' && (
+                <ProgressInput book={b} onSave={updateAndReload} />
+              )}
+
+              <button
+                onClick={() => deleteAndReload(b.id)}
+                className="mt-2 rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
   if (err) return <p className="m-8 text-red-700">Error: {err}</p>;
 
   return (
@@ -77,6 +91,7 @@ export default function BookshelfPage() {
       {/* Quick-add form */}
       <form onSubmit={handleAdd} className="space-y-2 rounded border p-4">
         <h2 className="font-bold">Add book</h2>
+
         <input
           type="text"
           placeholder="Title"
@@ -97,10 +112,13 @@ export default function BookshelfPage() {
           type="number"
           placeholder="Pages (optional)"
           value={form.pages || ''}
-          onChange={(e) => setForm({ ...form, pages: +e.target.value })}
+          onChange={(e) =>
+            setForm({ ...form, pages: +e.target.value || 0 })
+          }
           className="w-full rounded border p-2"
           min={0}
         />
+
         <button className="rounded bg-blue-600 px-3 py-2 font-semibold text-white hover:bg-blue-700">
           Add
         </button>
@@ -114,7 +132,9 @@ export default function BookshelfPage() {
   );
 }
 
-/* Component for progress entry */
+/* ------------------------------------------------------------------ *
+ *  Progress sub-component                                            *
+ * ------------------------------------------------------------------ */
 function ProgressInput({
   book,
   onSave,
