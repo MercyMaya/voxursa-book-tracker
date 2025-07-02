@@ -1,19 +1,26 @@
+/* ------------------------------------------------------------------ *
+ *  BookshelfPage – modern card layout                                *
+ * ------------------------------------------------------------------ */
+
 import { useContext, useEffect, useState } from 'react';
-import type { BookCandidate } from '../api';
+import type { BookCandidate, UserBook } from '../api';
 import {
   fetchUserBooks,
   addBook,
   updateUserBook,
   deleteUserBook,
 } from '../api';
-import type { UserBook } from '../api';
 import { AuthContext } from '../contexts/AuthContext';
 import EditReviewDialog from '../components/EditReviewDialog';
-import RatingStars from '../components/RatingStars';
 import BookAutoComplete from '../components/BookAutoComplete';
+import BookCard from '../components/BookCard';
+import AppShell from '../layouts/AppShell';
 
 type Status = UserBook['status'];
 
+/* ------------------------------------------------------------------ *
+ *  Page                                                               *
+ * ------------------------------------------------------------------ */
 export default function BookshelfPage() {
   const { authFetch } = useContext(AuthContext);
 
@@ -28,21 +35,19 @@ export default function BookshelfPage() {
   const [editing, setEditing] = useState<UserBook | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  /* ── load helper ─────────────────────────────────────────────── */
+  /* -------- initial & refresh load -------------------------------- */
   const load = () =>
     fetchUserBooks(authFetch)
       .then(setBooks)
       .catch((e) => setErr(e.message));
-
   useEffect(() => {
     load();
   }, [authFetch]);
 
-  /* ── CRUD helpers ─────────────────────────────────────────────── */
+  /* -------- CRUD helpers ----------------------------------------- */
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
 
-    // create book row
     await addBook(
       authFetch,
       form.title,
@@ -51,24 +56,26 @@ export default function BookshelfPage() {
       form.cover || null,
     );
 
-    // update status if they chose something other than TO_READ
+    /* move to chosen status if not TO_READ */
     if (form.status !== 'TO_READ') {
-      await load(); // get the freshly-added row
+      await load();
       const added = books.find(
         (b) => b.title === form.title && b.author === form.author,
       );
       if (added) {
-        await updateUserBook(authFetch, {
-          id: added.id,
-          status: form.status,
-        });
+        await updateUserBook(authFetch, { id: added.id, status: form.status });
       }
     }
 
-    // reset form & refresh list
     setForm({ title: '', author: '', pages: 0, status: 'TO_READ', cover: '' });
-    await load();
+    load();
   }
+
+  const changeStatus = (id: number, s: Status) =>
+    updateUserBook(authFetch, { id, status: s }).then(load);
+  const savePages = (id: number, pages_read: number) =>
+    updateUserBook(authFetch, { id, pages_read }).then(load);
+  const remove = (id: number) => deleteUserBook(authFetch, id).then(load);
 
   const saveReview = async (rating: number, review: string) => {
     if (!editing) return;
@@ -77,17 +84,7 @@ export default function BookshelfPage() {
     load();
   };
 
-  const changeStatus = (id: number, s: Status) =>
-    updateUserBook(authFetch, { id, status: s }).then(load);
-
-  const savePages = (id: number, pages_read: number) =>
-    updateUserBook(authFetch, { id, pages_read }).then(load);
-
-  const remove = (id: number) => deleteUserBook(authFetch, id).then(load);
-
-  /* ── UI helpers ─────────────────────────────────────────────── */
-  const byStatus = (s: Status) => books.filter((b) => b.status === s);
-
+  /* -------- autocomplete handler --------------------------------- */
   function autofill(b: BookCandidate) {
     setForm({
       ...form,
@@ -98,90 +95,80 @@ export default function BookshelfPage() {
     });
   }
 
+  /* ---------------------------------------------------------------- */
+
   return (
-    <div className="flex justify-center py-10">
-      <div className="w-full max-w-3xl space-y-10 rounded-2xl bg-white p-8 shadow">
-        <h1 className="text-center text-2xl font-bold">My Bookshelf</h1>
+    <AppShell>
+      {/* ----- Add-book form -------------------------------------- */}
+      <form
+        onSubmit={handleAdd}
+        className="mx-auto mb-10 max-w-xl space-y-4 rounded-xl border bg-white p-6 shadow dark:border-slate-700 dark:bg-slate-800"
+      >
+        <h2 className="text-lg font-semibold">Add a book</h2>
 
-        {/* Add-book card ------------------------------------------------- */}
-        <form onSubmit={handleAdd} className="space-y-4">
-          <h2 className="text-lg font-semibold">Add book</h2>
+        <BookAutoComplete onSelect={autofill} />
 
-          <BookAutoComplete onSelect={autofill} />
-
-          <div className="grid gap-2 sm:grid-cols-4">
-            <input
-              placeholder="Title"
-              value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
-              required
-              className="rounded border p-2 sm:col-span-2"
-            />
-            <input
-              placeholder="Author"
-              value={form.author}
-              onChange={(e) => setForm({ ...form, author: e.target.value })}
-              required
-              className="rounded border p-2"
-            />
-            <input
-              type="number"
-              placeholder="Pages"
-              value={form.pages || ''}
-              onChange={(e) =>
-                setForm({ ...form, pages: +e.target.value || 0 })
-              }
-              className="rounded border p-2"
-              min={0}
-            />
-          </div>
-
-          <div className="flex items-center gap-4">
-            <select
-              value={form.status}
-              onChange={(e) =>
-                setForm({ ...form, status: e.target.value as Status })
-              }
-              className="rounded border px-3 py-2"
-            >
-              <option value="TO_READ">To Read</option>
-              <option value="READING">Reading</option>
-              <option value="FINISHED">Finished</option>
-            </select>
-
-            <button className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">
-              Add
-            </button>
-          </div>
-        </form>
-
-        {/* Three-column grid ------------------------------------------- */}
-        <div className="grid gap-8 md:grid-cols-3">
-          <StatusColumn
-            title="To Read"
-            books={byStatus('TO_READ')}
-            changeStatus={changeStatus}
-            remove={remove}
+        <div className="grid gap-2 sm:grid-cols-4">
+          <input
+            placeholder="Title"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            required
+            className="rounded border p-2 sm:col-span-2 dark:border-slate-600 dark:bg-slate-900"
           />
-
-          <StatusColumn
-            title="Reading"
-            books={byStatus('READING')}
-            changeStatus={changeStatus}
-            savePages={savePages}
-            remove={remove}
+          <input
+            placeholder="Author"
+            value={form.author}
+            onChange={(e) => setForm({ ...form, author: e.target.value })}
+            required
+            className="rounded border p-2 dark:border-slate-600 dark:bg-slate-900"
           />
-
-          <StatusColumn
-            title="Finished"
-            books={byStatus('FINISHED')}
-            changeStatus={changeStatus}
-            remove={remove}
-            startReview={(b) => setEditing(b)}
+          <input
+            type="number"
+            placeholder="Pages"
+            value={form.pages || ''}
+            onChange={(e) =>
+              setForm({ ...form, pages: +e.target.value || 0 })
+            }
+            className="rounded border p-2 dark:border-slate-600 dark:bg-slate-900"
+            min={0}
           />
         </div>
+
+        <div className="flex items-center gap-4">
+          <select
+            value={form.status}
+            onChange={(e) =>
+              setForm({ ...form, status: e.target.value as Status })
+            }
+            className="rounded border px-3 py-2 dark:border-slate-600 dark:bg-slate-900"
+          >
+            <option value="TO_READ">To Read</option>
+            <option value="READING">Reading</option>
+            <option value="FINISHED">Finished</option>
+          </select>
+
+          <button className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">
+            Add
+          </button>
+        </div>
+      </form>
+
+      {/* ----- Books grid ----------------------------------------- */}
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {books.map((b) => (
+          <BookCard
+            key={b.id}
+            book={b}
+            onRemove={() => remove(b.id)}
+            onStatus={(s) => changeStatus(b.id, s)}
+            onProgress={(p) => savePages(b.id, p)}
+            onReview={() => setEditing(b)}
+          />
+        ))}
       </div>
 
+      {/* ---- Review dialog --------------------------------------- */}
       {editing && (
         <EditReviewDialog
           book={editing}
@@ -190,138 +177,12 @@ export default function BookshelfPage() {
         />
       )}
 
+      {/* ---- Error snackbar -------------------------------------- */}
       {err && (
-        <p className="fixed bottom-4 left-1/2 -translate-x-1/2 rounded bg-red-100 px-4 py-2 text-red-700 shadow">
+        <p className="fixed bottom-4 left-1/2 -translate-x-1/2 rounded bg-red-100 px-4 py-2 text-red-700 shadow dark:bg-red-900/80">
           {err}
         </p>
       )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ *
- *  Column component                                                  *
- * ------------------------------------------------------------------ */
-function StatusColumn({
-  title,
-  books,
-  changeStatus,
-  savePages,
-  remove,
-  startReview,
-}: {
-  title: string;
-  books: UserBook[];
-  changeStatus: (id: number, s: Status) => void;
-  savePages?: (id: number, pages: number) => void;
-  remove: (id: number) => void;
-  startReview?: (b: UserBook) => void;
-}) {
-  return (
-    <div>
-      <h3 className="mb-2 text-center text-lg font-semibold">{title}</h3>
-      <ul className="space-y-3">
-        {books.map((b) => (
-          <li key={b.id} className="rounded border p-3 shadow-sm">
-            <div className="flex gap-3">
-              {b.cover_url && (
-                <img
-                  src={b.cover_url}
-                  alt=""
-                  className="h-16 w-11 shrink-0 rounded object-cover shadow-sm"
-                  loading="lazy"
-                />
-              )}
-
-              <div className="flex-1">
-                <div className="mb-1 text-sm font-medium">
-                  {b.title}{' '}
-                  <span className="text-gray-500">– {b.author}</span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <select
-                    value={b.status}
-                    onChange={(e) =>
-                      changeStatus(b.id, e.target.value as Status)
-                    }
-                    className="rounded border px-2 py-1"
-                  >
-                    <option value="TO_READ">To Read</option>
-                    <option value="READING">Reading</option>
-                    <option value="FINISHED">Finished</option>
-                  </select>
-
-                  {b.status === 'READING' && savePages && (
-                    <ReadingProgress
-                      book={b}
-                      onSave={(p) => savePages(b.id, p)}
-                    />
-                  )}
-
-                  {b.status === 'FINISHED' && startReview && (
-                    <>
-                      <RatingStars
-                        value={b.rating}
-                        onChange={(v) =>
-                          startReview({ ...b, rating: v })
-                        }
-                      />
-                      <button
-                        onClick={() => startReview(b)}
-                        className="underline"
-                      >
-                        {b.review ? 'Edit review' : 'Add review'}
-                      </button>
-                    </>
-                  )}
-
-                  <button
-                    onClick={() => remove(b.id)}
-                    className="ml-auto rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
-                  >
-                    Remove
-                  </button>
-                </div>
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ *
- *  Reading progress mini-form                                        *
- * ------------------------------------------------------------------ */
-function ReadingProgress({
-  book,
-  onSave,
-}: {
-  book: UserBook;
-  onSave: (pages: number) => void;
-}) {
-  const [pages, setPages] = useState(book.pages_read);
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(pages);
-      }}
-      className="flex items-center gap-1"
-    >
-      <input
-        type="number"
-        value={pages}
-        onChange={(e) => setPages(+e.target.value)}
-        className="w-16 rounded border px-1 py-0.5 text-xs"
-        min={0}
-        max={book.total_pages || undefined}
-      />
-      <button className="rounded bg-gray-200 px-2 py-0.5 text-xs hover:bg-gray-300">
-        Save
-      </button>
-    </form>
+    </AppShell>
   );
 }

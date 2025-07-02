@@ -22,6 +22,9 @@ import App from './App';
 /* Global styles */
 import './index.css';
 
+if (localStorage.getItem('theme') === 'dark') {
+  document.documentElement.classList.add('dark');
+}
 /* ------------------------------------------------------------------ *
  *  Render                                                            *
  * ------------------------------------------------------------------ */
