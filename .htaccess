@@ -1,0 +1,13 @@
+# Serve existing static files
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# SPA fallback for React Router
+RewriteRule ^ index.html [L]
+
+# Prevent index.html from being cached aggressively
+<FilesMatch "^index\.html$">
+  FileETag None
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+</FilesMatch>
