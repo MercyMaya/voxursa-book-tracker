@@ -1,10 +1,9 @@
 /* ------------------------------------------------------------------ *
  *  Global API helper layer                                           *
- *  - Handles login, registration, JWT-aware fetch                    *
- *  - Book-shelf CRUD helpers                                         *
  * ------------------------------------------------------------------ */
 
-const API_BASE = 'https://voxursa.com/booktracker/api';
+/** Root of the remote PHP API (exported so others can import) */
+export const API_BASE = 'https://voxursa.com/booktracker/api';
 
 /* ------------------------------------------------------------------ *
  *  Types                                                             *
@@ -15,20 +14,15 @@ export type AuthFetch = <T = any>(
 ) => Promise<T>;
 
 export type UserBook = {
-  /* DB IDs */
-  id: number;          // id in user_books
-  book_id: number;     // FK to books
-
-  /* Book fields from JOIN */
+  id: number;
+  book_id: number;
   title: string;
   author: string;
   cover_url: string | null;
-
-  /* Per-user reading data */
   status: 'TO_READ' | 'READING' | 'FINISHED';
   pages_read: number;
   total_pages: number;
-  rating: number | null;        // 1-5, added later
+  rating: number | null;
   review: string | null;
 };
 
@@ -58,8 +52,7 @@ export async function register(
 }
 
 /**
- * Factory that returns a fetch wrapper which automatically attaches
- * the Authorization header when a JWT is present.
+ * Factory: returns a fetch wrapper that auto-attaches the JWT.
  */
 export function makeAuthFetch(token: string | null): AuthFetch {
   return async function authFetch<T = any>(
@@ -83,12 +76,12 @@ export function makeAuthFetch(token: string | null): AuthFetch {
  *  Book-shelf endpoints                                              *
  * ------------------------------------------------------------------ */
 
-/** GET the caller’s full bookshelf */
-export async function fetchUserBooks(authFetch: AuthFetch): Promise<UserBook[]> {
+export async function fetchUserBooks(
+  authFetch: AuthFetch,
+): Promise<UserBook[]> {
   return authFetch<UserBook[]>('/books/list.php');
 }
 
-/** PUT a new entry on the caller’s shelf */
 export async function addBook(
   authFetch: AuthFetch,
   title: string,
@@ -101,7 +94,6 @@ export async function addBook(
   });
 }
 
-/** PATCH a single user_books row */
 export async function updateUserBook(
   authFetch: AuthFetch,
   payload: Partial<UserBook> & { id: number },
@@ -112,7 +104,6 @@ export async function updateUserBook(
   });
 }
 
-/** DELETE a single user_books row */
 export async function deleteUserBook(
   authFetch: AuthFetch,
   id: number,

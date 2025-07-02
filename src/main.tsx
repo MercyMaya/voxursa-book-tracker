@@ -16,10 +16,10 @@ import RegisterPage from './pages/RegisterPage';
 import BookshelfPage from './pages/BookshelfPage';
 import MePage from './pages/MePage';
 
-/* Fallback shell (future dashboard / 404 etc.) */
+/* Fallback shell */
 import App from './App';
 
-/* Global styles (Tailwind directives live in index.css) */
+/* Global styles */
 import './index.css';
 
 /* ------------------------------------------------------------------ *
@@ -27,23 +27,23 @@ import './index.css';
  * ------------------------------------------------------------------ */
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <AuthProvider>
-      <BrowserRouter>
+    {/* Router must wrap AuthProvider so useNavigate() works */}
+    <BrowserRouter>
+      <AuthProvider>
         <Routes>
-          {/* Public routes ------------------------------------------------ */}
+          {/* Public routes ------------------------------------------ */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* Protected routes (JWT required) ----------------------------- */}
+          {/* Protected routes (JWT required) ------------------------ */}
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<BookshelfPage />} />
             <Route path="/me" element={<MePage />} />
-
-            {/* Catch-all for future authenticated sub-pages */}
+            {/* future authenticated routes */}
             <Route path="/*" element={<App />} />
           </Route>
         </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </React.StrictMode>,
 );
