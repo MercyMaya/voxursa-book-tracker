@@ -1,162 +1,158 @@
 import React, { useRef } from 'react';
-// You may import icons if using an icon library for the buttons:
 import { Trash2 } from 'lucide-react';
+import clsx from 'clsx';
+import type { UserBook } from '../api';
 
-interface Book {
-  id: string;
-  title: string;
-  author: string;
-  pages?: number;
-  cover?: string;
-  status: string;
-  review?: string;
-}
-
+/* ------------------------------------------------------------------ *
+ *  Props                                                              *
+ * ------------------------------------------------------------------ */
 interface BookCardProps {
-  book: Book;
-  onStatusChange: (id: string, newStatus: string) => void;
-  onDelete: (id: string) => void;
-  onOpenReview: (book: Book) => void;
-}
+    book: UserBook;
+    borderClass?: string;
+    /** receive NEW status only; card already knows its id */
+    onStatusChange: (newStatus: UserBook['status']) => void;
+    onDelete: (id: number) => void;
+    onOpenReview: (book: UserBook) => void;
+    onProgress?: (pages: number) => void;
+  }
 
-const BookCard: React.FC<BookCardProps> = ({ book, onStatusChange, onDelete, onOpenReview }) => {
+/* ------------------------------------------------------------------ *
+ *  Component                                                          *
+ * ------------------------------------------------------------------ */
+const BookCard: React.FC<BookCardProps> = ({
+  book,
+  borderClass = '',
+  onStatusChange,
+  onDelete,
+  onOpenReview,
+  onProgress,
+}) => {
   const cardRef = useRef<HTMLDivElement>(null);
 
-  // Handle keyboard navigation at the card level (arrow keys) and Enter key
+  /* ----- arrow-key grid navigation ------------------------------ */
   const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
-    if (!cardRef.current) return;
-    const cardElement = cardRef.current;
-    const container = cardElement.parentElement;
-    if (!container) return;
+    const el = cardRef.current;
+    if (!el) return;
+    const grid = el.parentElement;
+    if (!grid) return;
 
-    // Collect all card elements in this section
-    const cards = Array.from(container.querySelectorAll<HTMLDivElement>('.book-card'));
-    const index = cards.indexOf(cardElement);
+    const cards = Array.from(
+      grid.querySelectorAll<HTMLDivElement>('.book-card'),
+    );
+    const index = cards.indexOf(el);
+    if (index === -1) return;
 
-    let targetIndex: number | null = null;
-    const columns = (() => {
-      // determine number of columns in the grid by checking when a new row starts
-      if (cards.length > 1) {
-        const firstTop = cards[0].offsetTop;
-        for (let i = 1; i < cards.length; i++) {
-          if (cards[i].offsetTop > firstTop) {
-            return i; // i is number of columns in the first row
-          }
-        }
+    // columns in current grid row
+    const cols = (() => {
+      const firstTop = cards[0].offsetTop;
+      for (let i = 1; i < cards.length; i++) {
+        if (cards[i].offsetTop > firstTop) return i;
       }
-      return cards.length; // if only one row or one card, columns = length
+      return cards.length;
     })();
 
+    let target: number | null = null;
     switch (e.key) {
       case 'ArrowRight':
-        if (index < cards.length - 1) {
-          targetIndex = index + 1;
-        }
+        target = index + 1 < cards.length ? index + 1 : null;
         break;
       case 'ArrowLeft':
-        if (index > 0) {
-          targetIndex = index - 1;
-        }
+        target = index - 1 >= 0 ? index - 1 : null;
         break;
-      case 'ArrowDown': {
-        const downIndex = index + columns;
-        if (downIndex < cards.length) {
-          targetIndex = downIndex;
-        }
+      case 'ArrowDown':
+        target = index + cols < cards.length ? index + cols : null;
         break;
-      }
-      case 'ArrowUp': {
-        const upIndex = index - columns;
-        if (upIndex >= 0) {
-          targetIndex = upIndex;
-        }
+      case 'ArrowUp':
+        target = index - cols >= 0 ? index - cols : null;
         break;
-      }
       case 'Enter':
-      case ' ':  // Space bar
-        if (book.status === 'Completed') {
-          // Open review modal for completed book
+      case ' ':
+        if (book.status === 'FINISHED') {
           onOpenReview(book);
           e.preventDefault();
-        } else {
-          // If not completed, do nothing special on Enter (could potentially open details in future)
         }
         return;
       default:
         return;
     }
 
-    if (targetIndex !== null) {
-      e.preventDefault();  // prevent page scroll on arrow keys
-      const targetCard = cards[targetIndex];
-      targetCard?.focus();
+    if (target !== null) {
+      e.preventDefault();
+      cards[target]?.focus();
     }
   };
 
-  // Callback when user selects a new status from dropdown
-  const handleStatusSelect: React.ChangeEventHandler<HTMLSelectElement> = (e) => {
-    onStatusChange(book.id, e.target.value);
-  };
+  /* ----- handlers ----------------------------------------------- */
+  const handleStatus = (e: React.ChangeEvent<HTMLSelectElement>) =>
+    onStatusChange(e.target.value as UserBook['status']);
 
-  // Callback for delete button
-  const handleDeleteClick = () => {
-    onDelete(book.id);
-  };
+  const handleDelete = () => onDelete(book.id);
 
+  /* ----- render -------------------------------------------------- */
   return (
-    <div 
-      className={`book-card ${book.status.replace(' ', '-').toLowerCase()}-card`} 
-      ref={cardRef} 
-      tabIndex={0} 
+    <div
+      ref={cardRef}
+      className={clsx('book-card', borderClass)}
+      tabIndex={0}
       onKeyDown={handleKeyDown}
-      aria-label={`${book.title} by ${book.author} - ${book.status}`}  // Accessible label for the card
+      aria-label={`${book.title} by ${book.author} – ${book.status}`}
     >
-      {/* Book Cover */}
-      {book.cover ? (
-        <img src={book.cover} alt={`Cover of ${book.title}`} className="cover-image" />
+      {/* Cover */}
+      {book.cover_url ? (
+        <img
+          src={book.cover_url}
+          alt={`Cover of ${book.title}`}
+          className="cover-image"
+        />
       ) : (
         <div className="cover-placeholder">No Cover</div>
       )}
 
-      {/* Book Title & Author */}
+      {/* Text */}
       <div className="book-info">
-        <div className="book-title">{book.title}</div>
-        <div className="book-author">{book.author}</div>
+        <span className="book-title" title={book.title}>
+          {book.title}
+        </span>
+        <span className="book-author" title={book.author}>
+          {book.author}
+        </span>
       </div>
 
-      {/* Actions: Status dropdown & any relevant buttons */}
+      {/* Actions */}
       <div className="book-actions">
-        {/* Status Selector */}
-        <select 
-          value={book.status} 
-          onChange={handleStatusSelect} 
-          aria-label="Change status"
-        >
-          <option>Plan to Read</option>
-          <option>Currently Reading</option>
-          <option>Completed</option>
+        <select value={book.status} onChange={handleStatus}>
+          <option value="TO_READ">Plan to Read</option>
+          <option value="READING">Currently Reading</option>
+          <option value="FINISHED">Completed</option>
         </select>
 
-        {/* Review button (only for completed books) */}
-        {book.status === 'Completed' && (
-          <button 
-            type="button" 
-            className="review-button" 
-            onClick={() => onOpenReview(book)} 
-            aria-label="Add or view review"
+        {book.status === 'FINISHED' && (
+          <button
+            type="button"
+            className="review-button"
+            onClick={() => onOpenReview(book)}
           >
             Review
           </button>
         )}
 
-        {/* Delete button */}
-        <button 
-          type="button" 
-          className="delete-button" 
-          onClick={handleDeleteClick} 
+        {book.status === 'READING' && onProgress && (
+          <button
+            type="button"
+            className="review-button"
+            onClick={() => onProgress((book.pages_read ?? 0) + 1)}
+            title="Add one page read"
+          >
+            +1
+          </button>
+        )}
+
+        <button
+          type="button"
+          className="delete-button"
+          onClick={handleDelete}
           aria-label="Delete book"
         >
-          {/* Trash icon using FontAwesome (if available) */}
           <Trash2 className="h-4 w-4" />
         </button>
       </div>

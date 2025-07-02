@@ -2,13 +2,7 @@
  *  BookshelfPage                                                     *
  * ------------------------------------------------------------------ */
 
-import {
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-  KeyboardEvent,
-} from 'react';
+import { useContext, useEffect, useState } from 'react';
 
 import {
   fetchUserBooks,
@@ -222,14 +216,14 @@ const BookshelfPage = () => {
  * ------------------------------------------------------------------ */
 
 interface SectionProps {
-  label: string;
-  books: UserBook[];
-  borderClass: string;
-  onStatus: (id: number, s: Status) => void;
-  onProgress: (id: number, pages: number) => void;
-  onRemove: (id: number) => void;
-  onReview: (b: UserBook) => void;
-}
+    label: string;
+    books: UserBook[];
+    borderClass: string;
+    onStatus: (id: number, s: Status) => void;
+    onProgress: (id: number, pages: number) => void;
+    onRemove: (id: number) => void;
+    onReview: (b: UserBook) => void;
+  }
 
 const Section = ({
   label,
@@ -246,13 +240,13 @@ const Section = ({
       {books.length ? (
         books.map((b) => (
           <BookCard
-            key={b.id}
-            book={b}
-            borderClass={borderClass}
-            onStatusChange={(s) => onStatus(b.id, s as Status)}
-            onDelete={() => onRemove(b.id)}
-            onOpenReview={() => onReview(b)}
-            onProgress={(p) => onProgress(b.id, p)}
+                      key={b.id}
+                      book={b}
+                      borderClass={borderClass}
+                      onStatusChange={(s) => onStatus(b.id, s)}
+                      onDelete={() => onRemove(b.id)}
+                      onOpenReview={() => onReview(b)}
+                      onProgress={(p) => onProgress(b.id, p)}
           />
         ))
       ) : (

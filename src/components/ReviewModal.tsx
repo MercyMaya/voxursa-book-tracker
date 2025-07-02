@@ -1,59 +1,56 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { UserBook } from '../api';
 
-interface Book {
-  id: string;
-  title: string;
-  author: string;
-  // ...other fields
-  review?: string;
-}
-
-interface ReviewModalProps {
-  book: Book;
+interface Props {
+  book: UserBook;
   onClose: () => void;
-  onSave: (bookId: string, reviewText: string) => void;
+  onSave: (rating: number, review: string) => void;
 }
 
-const ReviewModal: React.FC<ReviewModalProps> = ({ book, onClose, onSave }) => {
-  const [reviewText, setReviewText] = useState<string>(book.review || '');
+export default function ReviewModal({ book, onClose, onSave }: Props) {
+  const [text, setText] = useState(book.review ?? '');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Trap focus within modal: focus the textarea on open
-  useEffect(() => {
-    textareaRef.current?.focus();
-  }, []);
+  useEffect(() => textareaRef.current?.focus(), []);
 
-  // Handle pressing Escape key to close modal
-  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
-    if (e.key === 'Escape') {
-      onClose();
-    }
-  };
-
-  const handleSave = () => {
-    onSave(book.id, reviewText.trim());
-    onClose();
-  };
+  function handleSave() {
+    onSave(5, text);           // rating hard-coded 5★ for now
+  }
 
   return (
-    <div className="modal-backdrop" onKeyDown={handleKeyDown} tabIndex={-1}>
-      <div className="modal-content" role="dialog" aria-modal="true" aria-labelledby="review-title">
-        <h3 id="review-title">Review: {book.title}</h3>
-        <p><em>{book.author}</em></p>
-        <textarea 
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/50"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded bg-white p-6 shadow"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-2 text-lg font-semibold">
+          Review&nbsp;– {book.title}
+        </h3>
+        <textarea
           ref={textareaRef}
-          value={reviewText}
-          onChange={(e) => setReviewText(e.target.value)}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
           rows={6}
-          placeholder="Write your thoughts about the book..."
+          className="w-full rounded border p-2"
         />
-        <div className="modal-buttons">
-          <button onClick={onClose} className="cancel-button">Cancel</button>
-          <button onClick={handleSave} className="save-button">Save Review</button>
+        <div className="mt-4 flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="rounded bg-blue-600 px-4 py-1 font-semibold text-white hover:bg-blue-700"
+          >
+            Save
+          </button>
         </div>
       </div>
     </div>
   );
-};
-
-export default ReviewModal;
+}
