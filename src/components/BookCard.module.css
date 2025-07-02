@@ -1,0 +1,150 @@
+.book-card {
+    background: var(--card-bg, #fff);
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* slight shadow for a clean look */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    outline: none;
+    /* remove default focus outline (we'll style it) */
+}
+
+.book-card:focus {
+    /* Highlight outline on focus (keyboard navigation) */
+    box-shadow: 0 0 0 3px rgba(100, 150, 250, 0.5);
+    /* Optionally, could also slightly scale up for emphasis */
+    transform: scale(1.02);
+}
+
+/* Cover Image Styling */
+.cover-image {
+    width: 100%;
+    max-height: 200px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+}
+
+.cover-placeholder {
+    width: 100%;
+    height: 180px;
+    background: #e0e0e0;
+    color: #555;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+    text-align: center;
+    padding: 0.5rem;
+}
+
+/* Book info text */
+.book-info {
+    text-align: center;
+    margin-bottom: 0.5rem;
+}
+
+.book-title {
+    font-weight: bold;
+    font-size: 1rem;
+    color: var(--text-color, #000);
+    /* Truncate long titles */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.book-author {
+    font-size: 0.9rem;
+    color: #555;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* Actions (dropdown and buttons) */
+.book-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-top: auto;
+    /* push actions to bottom of card if space */
+}
+
+.book-actions select {
+    font-size: 0.85rem;
+    padding: 0.2rem;
+}
+
+.book-actions button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+}
+
+/* Style the review and delete buttons differently for clarity */
+.review-button {
+    color: #0055aa;
+    text-decoration: underline;
+    /* (could also use an icon or emoji ★) */
+}
+
+.review-button:hover {
+    text-decoration: none;
+}
+
+.delete-button {
+    color: #aa0000;
+}
+
+.delete-button:hover {
+    color: #ff0000;
+}
+
+/* Color-coded outlines for each status */
+.completed-card {
+    border-color: #4caf50;
+    /* green */
+}
+
+.currently-reading-card {
+    border-color: #ffa726;
+    /* orange/amber */
+}
+
+.plan-to-read-card {
+    border-color: #42a5f5;
+    /* blue */
+}
+
+/* Dark mode adjustments (if using CSS variables or a .dark class on body) */
+body.dark .book-card {
+    --card-bg: #2b2b2b;
+    --text-color: #eee;
+    border-color: #555;
+    box-shadow: none;
+}
+
+body.dark .completed-card {
+    border-color: #66bb6a;
+}
+
+body.dark .currently-reading-card {
+    border-color: #ffb74d;
+}
+
+body.dark .plan-to-read-card {
+    border-color: #64b5f6;
+}

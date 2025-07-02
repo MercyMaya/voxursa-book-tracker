@@ -1,101 +1,167 @@
+import React, { useRef } from 'react';
+// You may import icons if using an icon library for the buttons:
 import { Trash2 } from 'lucide-react';
-import type { UserBook } from '../api';
-import RatingStars from './RatingStars';
-import clsx from 'clsx';
 
-export default function BookCard({
-  book,
-  onRemove,
-  onStatus,
-  onProgress,
-  onReview,
-}: {
-  book: UserBook;
-  onRemove: () => void;
-  onStatus: (s: UserBook['status']) => void;
-  onProgress?: (pages: number) => void;
-  onReview?: () => void;
-}) {
+interface Book {
+  id: string;
+  title: string;
+  author: string;
+  pages?: number;
+  cover?: string;
+  status: string;
+  review?: string;
+}
+
+interface BookCardProps {
+  book: Book;
+  onStatusChange: (id: string, newStatus: string) => void;
+  onDelete: (id: string) => void;
+  onOpenReview: (book: Book) => void;
+}
+
+const BookCard: React.FC<BookCardProps> = ({ book, onStatusChange, onDelete, onOpenReview }) => {
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Handle keyboard navigation at the card level (arrow keys) and Enter key
+  const handleKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
+    if (!cardRef.current) return;
+    const cardElement = cardRef.current;
+    const container = cardElement.parentElement;
+    if (!container) return;
+
+    // Collect all card elements in this section
+    const cards = Array.from(container.querySelectorAll<HTMLDivElement>('.book-card'));
+    const index = cards.indexOf(cardElement);
+
+    let targetIndex: number | null = null;
+    const columns = (() => {
+      // determine number of columns in the grid by checking when a new row starts
+      if (cards.length > 1) {
+        const firstTop = cards[0].offsetTop;
+        for (let i = 1; i < cards.length; i++) {
+          if (cards[i].offsetTop > firstTop) {
+            return i; // i is number of columns in the first row
+          }
+        }
+      }
+      return cards.length; // if only one row or one card, columns = length
+    })();
+
+    switch (e.key) {
+      case 'ArrowRight':
+        if (index < cards.length - 1) {
+          targetIndex = index + 1;
+        }
+        break;
+      case 'ArrowLeft':
+        if (index > 0) {
+          targetIndex = index - 1;
+        }
+        break;
+      case 'ArrowDown': {
+        const downIndex = index + columns;
+        if (downIndex < cards.length) {
+          targetIndex = downIndex;
+        }
+        break;
+      }
+      case 'ArrowUp': {
+        const upIndex = index - columns;
+        if (upIndex >= 0) {
+          targetIndex = upIndex;
+        }
+        break;
+      }
+      case 'Enter':
+      case ' ':  // Space bar
+        if (book.status === 'Completed') {
+          // Open review modal for completed book
+          onOpenReview(book);
+          e.preventDefault();
+        } else {
+          // If not completed, do nothing special on Enter (could potentially open details in future)
+        }
+        return;
+      default:
+        return;
+    }
+
+    if (targetIndex !== null) {
+      e.preventDefault();  // prevent page scroll on arrow keys
+      const targetCard = cards[targetIndex];
+      targetCard?.focus();
+    }
+  };
+
+  // Callback when user selects a new status from dropdown
+  const handleStatusSelect: React.ChangeEventHandler<HTMLSelectElement> = (e) => {
+    onStatusChange(book.id, e.target.value);
+  };
+
+  // Callback for delete button
+  const handleDeleteClick = () => {
+    onDelete(book.id);
+  };
+
   return (
-    <article
-      className={clsx(
-        'relative flex gap-4 rounded-xl border bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800',
-      )}
+    <div 
+      className={`book-card ${book.status.replace(' ', '-').toLowerCase()}-card`} 
+      ref={cardRef} 
+      tabIndex={0} 
+      onKeyDown={handleKeyDown}
+      aria-label={`${book.title} by ${book.author} - ${book.status}`}  // Accessible label for the card
     >
-      {book.cover_url ? (
-        <img
-          src={book.cover_url}
-          alt=""
-          className="h-24 w-16 shrink-0 rounded object-cover shadow"
-        />
+      {/* Book Cover */}
+      {book.cover ? (
+        <img src={book.cover} alt={`Cover of ${book.title}`} className="cover-image" />
       ) : (
-        <div className="h-24 w-16 shrink-0 rounded bg-slate-200 dark:bg-slate-700" />
+        <div className="cover-placeholder">No Cover</div>
       )}
 
-      <div className="flex-1">
-        <h3 className="font-semibold leading-tight">{book.title}</h3>
-        <p className="mb-1 text-sm text-slate-500 dark:text-slate-400">
-          {book.author}
-        </p>
-
-        {/* status / rating / progress */}
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <select
-            value={book.status}
-            onChange={(e) => onStatus(e.target.value as any)}
-            className="rounded border px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-800"
-          >
-            <option value="TO_READ">To read</option>
-            <option value="READING">Reading</option>
-            <option value="FINISHED">Finished</option>
-          </select>
-
-          {book.status === 'READING' && onProgress && (
-            <form
-              onSubmit={(ev) => {
-                ev.preventDefault();
-                onProgress(
-                  Number(
-                    (ev.currentTarget.elements.namedItem(
-                      'pg',
-                    ) as HTMLInputElement).value,
-                  ),
-                );
-              }}
-              className="flex items-center gap-1"
-            >
-              <input
-                name="pg"
-                type="number"
-                defaultValue={book.pages_read}
-                className="w-16 rounded border px-1 py-0.5 text-xs dark:border-slate-600 dark:bg-slate-800"
-              />
-              <button className="rounded bg-slate-100 px-2 py-0.5 text-xs hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600">
-                Save
-              </button>
-            </form>
-          )}
-
-          {book.status === 'FINISHED' && onReview && (
-            <>
-              <RatingStars value={book.rating} onChange={() => {}} />
-              <button
-                onClick={onReview}
-                className="underline decoration-dashed hover:no-underline"
-              >
-                {book.review ? 'Edit' : 'Add'} review
-              </button>
-            </>
-          )}
-        </div>
+      {/* Book Title & Author */}
+      <div className="book-info">
+        <div className="book-title">{book.title}</div>
+        <div className="book-author">{book.author}</div>
       </div>
 
-      <button
-        onClick={onRemove}
-        className="absolute right-2 top-2 rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600 dark:hover:bg-slate-700"
-      >
-        <Trash2 className="h-4 w-4" />
-      </button>
-    </article>
+      {/* Actions: Status dropdown & any relevant buttons */}
+      <div className="book-actions">
+        {/* Status Selector */}
+        <select 
+          value={book.status} 
+          onChange={handleStatusSelect} 
+          aria-label="Change status"
+        >
+          <option>Plan to Read</option>
+          <option>Currently Reading</option>
+          <option>Completed</option>
+        </select>
+
+        {/* Review button (only for completed books) */}
+        {book.status === 'Completed' && (
+          <button 
+            type="button" 
+            className="review-button" 
+            onClick={() => onOpenReview(book)} 
+            aria-label="Add or view review"
+          >
+            Review
+          </button>
+        )}
+
+        {/* Delete button */}
+        <button 
+          type="button" 
+          className="delete-button" 
+          onClick={handleDeleteClick} 
+          aria-label="Delete book"
+        >
+          {/* Trash icon using FontAwesome (if available) */}
+          <Trash2 className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
   );
-}
+};
+
+export default BookCard;

@@ -1,0 +1,24 @@
+.bookshelf-page {
+    padding: 1rem;
+}
+
+/* Section headings */
+.bookshelf-page h2 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1.5rem;
+    /* You can add small icons to headings via ::before content if desired */
+}
+
+/* The grid layout for book cards */
+.book-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+/* Placeholder text for empty sections */
+.placeholder {
+    font-style: italic;
+    color: #777;
+}
