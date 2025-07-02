@@ -110,3 +110,46 @@ export async function deleteUserBook(
 ): Promise<void> {
   await authFetch(`/books/delete.php?id=${id}`, { method: 'DELETE' });
 }
+
+
+/* ------------------------------------------------------------------ *
+ *  Google Books lookup helpers                                       *
+ * ------------------------------------------------------------------ */
+
+export type BookCandidate = {
+  title: string;
+  author: string;
+  pages: number | null;
+  cover: string | null;
+};
+
+const G_API = 'https://www.googleapis.com/books/v1/volumes';
+
+/**
+ * Live search against Google Books (10 results).
+ * Requires env var VITE_GBOOKS_KEY.
+ */
+export async function searchGoogleBooks(
+  query: string,
+): Promise<BookCandidate[]> {
+  if (!query.trim()) return [];
+
+  const key = import.meta.env.VITE_GBOOKS_KEY;
+  const url =
+    `${G_API}?q=${encodeURIComponent(query)}` +
+    `&maxResults=10&fields=items(volumeInfo(title,authors,pageCount,imageLinks/thumbnail))` +
+    (key ? `&key=${key}` : '');
+
+  const res = await fetch(url);
+  const json = await res.json();
+
+  return (json.items ?? []).map((it: any) => {
+    const v = it.volumeInfo;
+    return {
+      title: v.title,
+      author: (v.authors ?? [''])[0],
+      pages: v.pageCount ?? null,
+      cover: v.imageLinks?.thumbnail ?? null,
+    } as BookCandidate;
+  });
+}

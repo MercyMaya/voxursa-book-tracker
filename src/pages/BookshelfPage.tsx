@@ -4,78 +4,111 @@ import {
   addBook,
   updateUserBook,
   deleteUserBook,
+  BookCandidate,
 } from '../api';
 import type { UserBook } from '../api';
 import { AuthContext } from '../contexts/AuthContext';
 import EditReviewDialog from '../components/EditReviewDialog';
 import RatingStars from '../components/RatingStars';
+import BookAutoComplete from '../components/BookAutoComplete';
 
 type Status = UserBook['status'];
 
 export default function BookshelfPage() {
   const { authFetch } = useContext(AuthContext);
+
   const [books, setBooks] = useState<UserBook[]>([]);
   const [form, setForm] = useState({
     title: '',
     author: '',
     pages: 0,
     status: 'TO_READ' as Status,
+    cover: '',
   });
   const [editing, setEditing] = useState<UserBook | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  /* ── initial & refresh load ───────────────────────────────────── */
+  /* ── load helper ─────────────────────────────────────────────── */
   const load = () =>
     fetchUserBooks(authFetch)
       .then(setBooks)
       .catch((e) => setErr(e.message));
-        useEffect(() => {
-            load();                     // call it, ignore the returned Promise
-          }, [authFetch]);
+
+  useEffect(() => {
+    load();
+  }, [authFetch]);
 
   /* ── CRUD helpers ─────────────────────────────────────────────── */
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
+
+    // create book row
     await addBook(
       authFetch,
       form.title,
       form.author,
       form.pages,
+      form.cover || null,
     );
-    /* server sets TO_READ by default; update status if needed */
+
+    // update status if they chose something other than TO_READ
     if (form.status !== 'TO_READ') {
-      await load();
+      await load(); // get the freshly-added row
       const added = books.find(
         (b) => b.title === form.title && b.author === form.author,
       );
-      if (added) await updateUserBook(authFetch, { id: added.id, status: form.status });
+      if (added) {
+        await updateUserBook(authFetch, {
+          id: added.id,
+          status: form.status,
+        });
+      }
     }
-    setForm({ title: '', author: '', pages: 0, status: 'TO_READ' });
+
+    // reset form & refresh list
+    setForm({ title: '', author: '', pages: 0, status: 'TO_READ', cover: '' });
     await load();
   }
-  const saveReview = async (r: number, txt: string) => {
+
+  const saveReview = async (rating: number, review: string) => {
     if (!editing) return;
-    await updateUserBook(authFetch, { id: editing.id, rating: r, review: txt });
+    await updateUserBook(authFetch, { id: editing.id, rating, review });
     setEditing(null);
     load();
   };
+
   const changeStatus = (id: number, s: Status) =>
     updateUserBook(authFetch, { id, status: s }).then(load);
+
   const savePages = (id: number, pages_read: number) =>
     updateUserBook(authFetch, { id, pages_read }).then(load);
+
   const remove = (id: number) => deleteUserBook(authFetch, id).then(load);
 
-  /* ── UI helpers ───────────────────────────────────────────────── */
+  /* ── UI helpers ─────────────────────────────────────────────── */
   const byStatus = (s: Status) => books.filter((b) => b.status === s);
+
+  function autofill(b: BookCandidate) {
+    setForm({
+      ...form,
+      title: b.title,
+      author: b.author,
+      pages: b.pages ?? 0,
+      cover: b.cover ?? '',
+    });
+  }
 
   return (
     <div className="flex justify-center py-10">
       <div className="w-full max-w-3xl space-y-10 rounded-2xl bg-white p-8 shadow">
         <h1 className="text-center text-2xl font-bold">My Bookshelf</h1>
 
-        {/* Add-book card ------------------------------------------------ */}
+        {/* Add-book card ------------------------------------------------- */}
         <form onSubmit={handleAdd} className="space-y-4">
           <h2 className="text-lg font-semibold">Add book</h2>
+
+          <BookAutoComplete onSelect={autofill} />
+
           <div className="grid gap-2 sm:grid-cols-4">
             <input
               placeholder="Title"
@@ -102,6 +135,7 @@ export default function BookshelfPage() {
               min={0}
             />
           </div>
+
           <div className="flex items-center gap-4">
             <select
               value={form.status}
@@ -114,13 +148,14 @@ export default function BookshelfPage() {
               <option value="READING">Reading</option>
               <option value="FINISHED">Finished</option>
             </select>
+
             <button className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">
               Add
             </button>
           </div>
         </form>
 
-        {/* Three-column grid ------------------------------------------ */}
+        {/* Three-column grid ------------------------------------------- */}
         <div className="grid gap-8 md:grid-cols-3">
           <StatusColumn
             title="To Read"
@@ -147,7 +182,6 @@ export default function BookshelfPage() {
         </div>
       </div>
 
-      {/* Review dialog */}
       {editing && (
         <EditReviewDialog
           book={editing}
@@ -166,7 +200,7 @@ export default function BookshelfPage() {
 }
 
 /* ------------------------------------------------------------------ *
- *  Column component (reuse)                                          *
+ *  Column component                                                  *
  * ------------------------------------------------------------------ */
 function StatusColumn({
   title,
@@ -189,53 +223,67 @@ function StatusColumn({
       <ul className="space-y-3">
         {books.map((b) => (
           <li key={b.id} className="rounded border p-3 shadow-sm">
-            <div className="mb-1 text-sm font-medium">
-              {b.title} <span className="text-gray-500">– {b.author}</span>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <select
-                value={b.status}
-                onChange={(e) =>
-                  changeStatus(b.id, e.target.value as Status)
-                }
-                className="rounded border px-2 py-1"
-              >
-                <option value="TO_READ">To Read</option>
-                <option value="READING">Reading</option>
-                <option value="FINISHED">Finished</option>
-              </select>
-
-              {b.status === 'READING' && savePages && (
-                <ReadingProgress
-                  book={b}
-                  onSave={(p) => savePages(b.id, p)}
+            <div className="flex gap-3">
+              {b.cover_url && (
+                <img
+                  src={b.cover_url}
+                  alt=""
+                  className="h-16 w-11 shrink-0 rounded object-cover shadow-sm"
+                  loading="lazy"
                 />
               )}
 
-              {b.status === 'FINISHED' && startReview && (
-                <>
-                  <RatingStars
-                    value={b.rating}
-                    onChange={(v) =>
-                      startReview({ ...b, rating: v })
-                    }
-                  />
-                  <button
-                    onClick={() => startReview(b)}
-                    className="underline"
-                  >
-                    {b.review ? 'Edit review' : 'Add review'}
-                  </button>
-                </>
-              )}
+              <div className="flex-1">
+                <div className="mb-1 text-sm font-medium">
+                  {b.title}{' '}
+                  <span className="text-gray-500">– {b.author}</span>
+                </div>
 
-              <button
-                onClick={() => remove(b.id)}
-                className="ml-auto rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
-              >
-                Remove
-              </button>
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <select
+                    value={b.status}
+                    onChange={(e) =>
+                      changeStatus(b.id, e.target.value as Status)
+                    }
+                    className="rounded border px-2 py-1"
+                  >
+                    <option value="TO_READ">To Read</option>
+                    <option value="READING">Reading</option>
+                    <option value="FINISHED">Finished</option>
+                  </select>
+
+                  {b.status === 'READING' && savePages && (
+                    <ReadingProgress
+                      book={b}
+                      onSave={(p) => savePages(b.id, p)}
+                    />
+                  )}
+
+                  {b.status === 'FINISHED' && startReview && (
+                    <>
+                      <RatingStars
+                        value={b.rating}
+                        onChange={(v) =>
+                          startReview({ ...b, rating: v })
+                        }
+                      />
+                      <button
+                        onClick={() => startReview(b)}
+                        className="underline"
+                      >
+                        {b.review ? 'Edit review' : 'Add review'}
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => remove(b.id)}
+                    className="ml-auto rounded bg-red-100 px-2 py-1 text-xs text-red-700 hover:bg-red-200"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
             </div>
           </li>
         ))}
