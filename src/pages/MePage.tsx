@@ -1,16 +1,28 @@
 import { useContext, useEffect, useState } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
 
+interface Me {
+  id: number;
+  email: string;
+  created_at: string;
+}
+
 export default function MePage() {
-  const { authFetch, logout } = useContext(AuthContext);
-  const [me, setMe] = useState<any>(null);
+    const ctx = useContext(AuthContext);
+    if (!ctx) throw new Error('AuthProvider not mounted');
+    const { authFetch, logout } = ctx;
+  const [me, setMe] = useState<Me | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    authFetch('/me.php')
-      .then(setMe)
-      .catch((e) => setErr(e.message));
-  }, []);
+    useEffect(() => {
+        authFetch('/me.php')
+          .then((r) => r.json())
+          .then(setMe)
+          .catch((e: unknown) => {
+            const msg = e instanceof Error ? e.message : 'Failed to load profile';
+            setErr(msg);
+          });
+      }, [authFetch]);
 
   if (err) return <p className="m-8 text-red-700">Error: {err}</p>;
   if (!me) return <p className="m-8">Loading…</p>;

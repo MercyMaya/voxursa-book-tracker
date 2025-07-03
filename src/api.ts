@@ -1,166 +1,145 @@
-/* ------------------------------------------------------------------ *
- *  Configuration                                                     *
- * ------------------------------------------------------------------ */
+/**********************************************************************
+ *  Central API helpers (front-end)                                   *
+ ********************************************************************/
 
-/** Remote PHP API root */
-export const API_BASE = 'https://voxursa.com/booktracker/api';
+/* ---------- shared types ---------------------------------------- */
 
-/* ------------------------------------------------------------------ *
- *  Generic JWT-aware fetch type                                      *
- * ------------------------------------------------------------------ */
-export type AuthFetch = <T = any>(
-  path: string,
-  opts?: RequestInit,
-) => Promise<T>;
+export type Status = 'TO_READ' | 'READING' | 'FINISHED';
 
-/* ------------------------------------------------------------------ *
- *  Data models                                                       *
- * ------------------------------------------------------------------ */
-export type UserBook = {
+export interface UserBook {
   id: number;
-  book_id: number;
   title: string;
   author: string;
-  cover_url: string | null;
-  status: 'TO_READ' | 'READING' | 'FINISHED';
+  total_pages?: number;
   pages_read: number;
-  total_pages: number;
-  rating: number | null;
-  review: string | null;
-};
-
-/* ------------------------------------------------------------------ *
- *  Authentication helpers                                            *
- * ------------------------------------------------------------------ */
-export async function login(
-  email: string,
-  password: string,
-): Promise<string> {
-  const res = await fetch(`${API_BASE}/login.php`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-
-  if (!res.ok) throw new Error((await res.json()).error);
-  return (await res.json()).token as string;
+  cover_url?: string | null;
+  status: Status;
+  rating?: number;
+  review?: string;
 }
 
-export async function register(
-  email: string,
-  password: string,
-): Promise<void> {
-  const res = await fetch(`${API_BASE}/register.php`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) throw new Error((await res.json()).error);
+export interface BookCandidate {
+  title: string;
+  author: string;
+  pages?: number;
+  cover?: string;
 }
 
-/** Factory: returns fetch wrapper that auto-adds JWT and JSON handling */
+/* ---------- JWT-aware fetch helper ------------------------------ */
+
+export type AuthFetch = (
+  path: string,
+  init?: RequestInit
+) => Promise<Response>;
+
 export function makeAuthFetch(token: string | null): AuthFetch {
-  return async function authFetch<T = any>(
-    path: string,
-    opts: RequestInit = {},
-  ): Promise<T> {
-    const res = await fetch(`${API_BASE}${path}`, {
-      ...opts,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...opts.headers,
-      },
+  return (path, init = {}) => {
+    const headers = new Headers(init.headers ?? {});
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    headers.set('Content-Type', 'application/json');
+    return fetch(import.meta.env.VITE_API_BASE + path, {
+      ...init,
+      headers,
     });
-
-    if (!res.ok) throw new Error((await res.json()).error);
-    return res.json() as Promise<T>;
   };
 }
 
-/* ------------------------------------------------------------------ *
- *  Bookshelf endpoints                                               *
- * ------------------------------------------------------------------ */
+/* ---------- CRUD helpers for user books ------------------------- */
 
-export async function fetchUserBooks(
-  authFetch: AuthFetch,
-): Promise<UserBook[]> {
-  return authFetch<UserBook[]>('/books/list.php');
-}
+export const fetchUserBooks = async (
+  fetcher: AuthFetch
+): Promise<UserBook[]> => fetcher('/books/list.php').then((r) => r.json());
 
-export async function addBook(
-  authFetch: AuthFetch,
+export const addBook = (
+  fetcher: AuthFetch,
   title: string,
   author: string,
   pages: number,
-  cover: string | null,
-): Promise<void> {
-  await authFetch('/books/add.php', {
+  cover: string | null
+) =>
+  fetcher('/books/add.php', {
     method: 'POST',
     body: JSON.stringify({
       title,
       author,
-      total_pages: pages,
-      cover_url: cover,
+      total_pages: pages || undefined,
+      cover,
     }),
   });
-}
 
-export async function updateUserBook(
-  authFetch: AuthFetch,
-  payload: Partial<UserBook> & { id: number },
-): Promise<void> {
-  await authFetch('/books/update.php', {
-    method: 'POST',
-    body: JSON.stringify(payload),
+export const updateUserBook = (
+  fetcher: AuthFetch,
+  patch: Partial<
+    Pick<UserBook, 'status' | 'pages_read' | 'rating' | 'review'>
+  > & { id: number }
+) =>
+  fetcher('/books/update.php', {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
   });
-}
 
-export async function deleteUserBook(
-  authFetch: AuthFetch,
-  id: number,
-): Promise<void> {
-  await authFetch(`/books/delete.php?id=${id}`, { method: 'DELETE' });
-}
+export const deleteUserBook = (fetcher: AuthFetch, id: number) =>
+  fetcher(`/books/delete.php?id=${id}`, { method: 'DELETE' });
+
+/* ---------- Google Books search --------------------------------- */
+interface GoogleItem {
+    volumeInfo: {
+      title: string;
+      authors?: string[];
+      pageCount?: number;
+      imageLinks?: { thumbnail?: string };
+    };
+  }
 
 
-/* ------------------------------------------------------------------ *
- *  Google Books lookup (autocomplete)                                *
- * ------------------------------------------------------------------ */
-
-export type BookCandidate = {
-  title: string;
-  author: string;
-  pages: number | null;
-  cover: string | null;
-};
-
-const G_API = 'https://www.googleapis.com/books/v1/volumes';
-
-/**
- * Live search (maxResults = 10).  Requires env var VITE_GBOOKS_KEY.
- */
 export async function searchGoogleBooks(
-  query: string,
+  q: string
 ): Promise<BookCandidate[]> {
-  if (!query.trim()) return [];
+  if (!q) return [];
+  const data = await fetch(
+    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}`
+  ).then((r) => r.json());
+  if (!data.items) return [];
+  return (data.items as GoogleItem[]).map((v) => ({
+    title: v.volumeInfo.title,
+    author: v.volumeInfo.authors?.[0] ?? '',
+    pages: v.volumeInfo.pageCount,
+    cover: v.volumeInfo.imageLinks?.thumbnail ?? '',
+  }));
+}
 
-  const key = import.meta.env.VITE_GBOOKS_KEY;
-  const url =
-    `${G_API}?q=${encodeURIComponent(query)}` +
-    `&maxResults=10&fields=items(volumeInfo(title,authors,pageCount,imageLinks/thumbnail))` +
-    (key ? `&key=${key}` : '');
 
-  const res = await fetch(url);
-  const json = await res.json();
-
-  return (json.items ?? []).map((it: any) => {
-    const v = it.volumeInfo;
-    return {
-      title: v.title,
-      author: (v.authors ?? [''])[0],
-      pages: v.pageCount ?? null,
-      cover: v.imageLinks?.thumbnail ?? null,
-    } as BookCandidate;
+/* ---------- auth endpoints ------------------------------------ */
+export async function register(email: string, password: string) {
+  const res = await fetch(import.meta.env.VITE_API_BASE + '/register.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
   });
+  if (!res.ok) {
+    const { error } = await res.json();
+    throw new Error(error ?? 'Registration failed');
+  }
+}
+
+
+/* ---------- auth: log-in --------------------------------------- */
+
+export async function loginUser(
+  email: string,
+  password: string
+): Promise<string> {
+  const rsp = await fetch(import.meta.env.VITE_API_BASE + '/login.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!rsp.ok) {
+    const { error } = await rsp.json();
+    throw new Error(error ?? 'Login failed');
+  }
+
+  const { token } = (await rsp.json()) as { token: string };
+  return token;
 }

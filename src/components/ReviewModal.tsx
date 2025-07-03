@@ -1,51 +1,60 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import RatingStars from './RatingStars';
 import type { UserBook } from '../api';
 
 interface Props {
   book: UserBook;
-  onClose: () => void;
   onSave: (rating: number, review: string) => void;
+  onClose: () => void;
 }
 
-export default function ReviewModal({ book, onClose, onSave }: Props) {
-  const [text, setText] = useState(book.review ?? '');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+export default function ReviewModal({ book, onSave, onClose }: Props) {
+  const [rating, setRating] = useState(book.rating ?? 0);
+  const [review, setReview] = useState(book.review ?? '');
 
-  useEffect(() => textareaRef.current?.focus(), []);
-
-  function handleSave() {
-    onSave(5, text);           // rating hard-coded 5★ for now
-  }
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onEsc);
+    return () => window.removeEventListener('keydown', onEsc);
+  }, [onClose]);
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/50"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+      role="dialog"
+      aria-modal="true"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded bg-white p-6 shadow"
+        className="w-full max-w-md rounded bg-white p-6 shadow dark:bg-slate-800"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-2 text-lg font-semibold">
-          Review&nbsp;– {book.title}
-        </h3>
+        <h2 className="mb-4 text-xl font-semibold">
+          Review — {book.title}
+        </h2>
+
+        <RatingStars value={rating} onChange={setRating} />
+
         <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          rows={6}
-          className="w-full rounded border p-2"
+          rows={5}
+          className="mt-4 w-full rounded border p-2 dark:border-slate-600 dark:bg-slate-900"
+          value={review}
+          onChange={(e) => setReview(e.target.value)}
         />
-        <div className="mt-4 flex justify-end gap-3">
+
+        <div className="mt-4 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="rounded bg-gray-200 px-3 py-1 hover:bg-gray-300"
+            className="rounded border px-4 py-2 dark:border-slate-600 dark:text-slate-300"
           >
             Cancel
           </button>
           <button
-            onClick={handleSave}
-            className="rounded bg-blue-600 px-4 py-1 font-semibold text-white hover:bg-blue-700"
+            onClick={() => {
+              onSave(rating, review);
+              onClose();
+            }}
+            className="rounded bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700"
           >
             Save
           </button>

@@ -1,29 +1,49 @@
-import { FormEvent, useState, useContext } from 'react';
+import {
+  type FormEvent,
+  useState,
+  useContext,
+} from 'react';
 import { AuthContext } from '../contexts/AuthContext';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import {
+  useNavigate,
+  useLocation,
+  Link,
+  type Location,
+} from 'react-router-dom';
+import { loginUser } from '../api';
+
+/* --------- type for location.state ----------------------------- */
+interface LocationState {
+  from?: { pathname: string };
+}
 
 export default function LoginPage() {
-  const { login } = useContext(AuthContext);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('AuthProvider not mounted');
 
-  // destination the user originally wanted
-  const from = (location.state as any)?.from?.pathname || '/';
+  const { login: setToken } = ctx;
+
+  const navigate = useNavigate();
+  const location = useLocation() as Location<LocationState>;
+  const from = location.state?.from?.pathname ?? '/';
 
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setErr(null);
+
     try {
-      await login(email, pw);     // get & store token
+      const jwt = await loginUser(email, pw);
+      setToken(jwt);                 // store in context / localStorage
       navigate(from, { replace: true });
-    } catch (ex: any) {
-      setErr(ex.message);
+    } catch (ex: unknown) {
+      const msg = ex instanceof Error ? ex.message : 'Login failed';
+      setErr(msg);
       setLoading(false);
     }
   }

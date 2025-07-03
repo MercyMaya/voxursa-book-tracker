@@ -77,3 +77,23 @@ button:focus-visible {
     @apply bg-slate-900 text-slate-100;
   }
 }
+
+.book-grid {
+  @apply grid gap-4;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.plan-to-read-card {
+  border: 2px solid #fbbf24;
+  /* amber-400 */
+}
+
+.currently-reading-card {
+  border: 2px solid #3b82f6;
+  /* blue-500 */
+}
+
+.completed-card {
+  border: 2px solid #10b981;
+  /* green-500 */
+}

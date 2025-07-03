@@ -1,29 +1,28 @@
-import { Star, StarOff } from 'lucide-react';
+import { Star } from 'lucide-react';
 
-export default function RatingStars({
-  value,
-  onChange,
-}: {
-  value: number | null;
-  onChange: (v: number) => void;
-}) {
+interface Props {
+  value: number;                 // 0–5
+  onChange?: (v: number) => void;
+  disabled?: boolean;
+}
+
+export default function RatingStars({ value, onChange, disabled }: Props) {
   return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((n) =>
-        (value ?? 0) >= n ? (
+    <div className="flex">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <button
+          key={i}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange?.(i)}
+        >
           <Star
-            key={n}
-            className="h-5 w-5 cursor-pointer text-yellow-400"
-            onClick={() => onChange(n)}
+            className={`h-5 w-5 ${
+              i <= value ? 'fill-yellow-400 stroke-yellow-400' : 'stroke-gray-400'
+            }`}
           />
-        ) : (
-          <StarOff
-            key={n}
-            className="h-5 w-5 cursor-pointer text-gray-300"
-            onClick={() => onChange(n)}
-          />
-        ),
-      )}
+        </button>
+      ))}
     </div>
   );
 }
