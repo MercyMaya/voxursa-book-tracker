@@ -97,3 +97,13 @@ button:focus-visible {
   border: 2px solid #10b981;
   /* green-500 */
 }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom utility (clip half) for half-star icons */
+.clip-half {
+  /* Clip the element to show only the left half */
+  clip-path: inset(0 50% 0 0);
+}

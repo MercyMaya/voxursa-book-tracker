@@ -1,50 +1,53 @@
 import {
   type FormEvent,
-  useState,
   useContext,
+  useState
 } from 'react';
-import { AuthContext } from '../contexts/AuthContext';
 import {
   useNavigate,
   useLocation,
   Link,
-  type Location,
+  type Location
 } from 'react-router-dom';
-import { loginUser } from '../api';
+import { AuthContext } from '../contexts/AuthContext';
 
-/* --------- type for location.state ----------------------------- */
+/* ------------------------------------------------------------------ *
+ *  Helpers                                                            *
+ * ------------------------------------------------------------------ */
+
 interface LocationState {
-  from?: { pathname: string };
+  from?: Location['pathname'];
 }
 
+/* ------------------------------------------------------------------ *
+ *  Page                                                               *
+ * ------------------------------------------------------------------ */
+
 export default function LoginPage() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('AuthProvider not mounted');
-
-  const { login: setToken } = ctx;
-
+  const { login } = useContext(AuthContext);
   const navigate = useNavigate();
-  const location = useLocation() as Location<LocationState>;
-  const from = location.state?.from?.pathname ?? '/';
+  const location = useLocation();
+
+  const redirectTo =
+    (location.state as LocationState | null)?.from ?? '/';
 
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setLoading(true);
     setErr(null);
-
+    setBusy(true);
     try {
-      const jwt = await loginUser(email, pw);
-      setToken(jwt);                 // store in context / localStorage
-      navigate(from, { replace: true });
-    } catch (ex: unknown) {
-      const msg = ex instanceof Error ? ex.message : 'Login failed';
+      await login(email, pw);
+      navigate(redirectTo, { replace: true });
+    } catch (e: unknown) {
+      const msg =
+        e instanceof Error ? e.message : 'Login failed';
       setErr(msg);
-      setLoading(false);
+      setBusy(false);
     }
   }
 
@@ -54,38 +57,42 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
         className="w-full max-w-sm space-y-4 rounded-xl bg-white p-8 shadow"
       >
-        <h1 className="text-2xl font-bold">Sign in</h1>
+        <h1 className="text-2xl font-bold text-center">Sign&nbsp;in</h1>
 
-        {err && <p className="rounded bg-red-100 p-2 text-red-700">{err}</p>}
+        {err && (
+          <p className="rounded bg-red-100 p-2 text-red-700">{err}</p>
+        )}
 
         <input
           type="email"
-          placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded border p-2"
+          placeholder="Email"
           required
+          className="w-full rounded border p-2"
         />
         <input
           type="password"
-          placeholder="Password"
           value={pw}
           onChange={(e) => setPw(e.target.value)}
-          className="w-full rounded border p-2"
+          placeholder="Password"
           required
+          className="w-full rounded border p-2"
         />
 
         <button
-          type="submit"
-          disabled={loading}
+          disabled={busy}
           className="w-full rounded bg-blue-600 p-2 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          {loading ? 'Signing in…' : 'Log in'}
+          {busy ? 'Signing in…' : 'Log in'}
         </button>
 
         <p className="text-center text-sm">
           No account?{' '}
-          <Link to="/register" className="text-blue-600 hover:underline">
+          <Link
+            to="/register"
+            className="text-blue-600 hover:underline"
+          >
             Register
           </Link>
         </p>

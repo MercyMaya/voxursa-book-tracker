@@ -1,96 +1,125 @@
-import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
-import RatingStars from './RatingStars';
-import type { UserBook, Status } from '../api';
+import {
+  PencilSquareIcon,
+  TrashIcon,
+} from '@heroicons/react/24/outline';
+import StarRating from './StarRating';
+import {
+  type Status,
+  type UserBook
+} from '../api';
 
-interface BookCardProps {
+interface Props {
   book: UserBook;
-  borderClass: string;
   onStatusChange: (s: Status) => void;
-  onProgress: (pages: number) => void;
-  onOpenReview: () => void;
   onDelete: () => void;
+  onOpenReview: () => void;
+  onProgress: (pages: number) => void;
+  borderClass: string;             // Tailwind ring / border colour
 }
 
 export default function BookCard({
   book,
-  borderClass,
   onStatusChange,
-  onProgress,
-  onOpenReview,
   onDelete,
-}: BookCardProps) {
-  const [pages, setPages] = useState(book.pages_read);
+  onOpenReview,
+  onProgress,
+  borderClass,
+}: Props) {
+  /* reading-progress form handler */
+  function handleProgressSave(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const field = e.currentTarget.elements.namedItem(
+      'pages'
+    ) as HTMLInputElement;
+    onProgress(+field.value || 0);
+  }
 
   return (
-    <div
-      className={`flex flex-col space-y-3 rounded-lg bg-white p-4 shadow dark:bg-slate-800 ${borderClass}`}
+    <article
+      className={`flex flex-col gap-2 rounded-lg border bg-white p-3 shadow hover:shadow-md
+                  dark:border-slate-700 dark:bg-slate-800 ${borderClass}`}
     >
+      {/* cover */}
       {book.cover_url ? (
         <img
           src={book.cover_url}
           alt=""
-          className="mb-2 h-48 w-full rounded object-cover"
+          className="mx-auto h-40 w-28 rounded object-cover shadow"
           loading="lazy"
         />
       ) : (
-        <div className="mb-2 h-48 w-full rounded bg-slate-200 dark:bg-slate-700" />
+        <div className="mx-auto flex h-40 w-28 items-center justify-center rounded bg-slate-200
+                        text-xs text-slate-500 dark:bg-slate-700">
+          No&nbsp;Cover
+        </div>
       )}
 
-      <h3 className="font-semibold">{book.title}</h3>
-      <p className="text-sm text-gray-600 dark:text-gray-400">{book.author}</p>
+      {/* title / author */}
+      <div className="min-h-[3rem] text-center">
+        <h3 className="font-medium">{book.title}</h3>
+        <p className="text-xs text-slate-500">{book.author}</p>
+      </div>
 
+      {/* status select */}
       <select
         value={book.status}
         onChange={(e) => onStatusChange(e.target.value as Status)}
-        className="rounded border px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+        className="mx-auto rounded border px-2 py-1 text-xs
+                   dark:border-slate-600 dark:bg-slate-900"
       >
         <option value="TO_READ">Plan to Read</option>
         <option value="READING">Currently Reading</option>
         <option value="FINISHED">Completed</option>
       </select>
 
+      {/* progress */}
       {book.status === 'READING' && (
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onProgress(pages);
-          }}
-          className="flex items-center gap-2 text-sm"
+          onSubmit={handleProgressSave}
+          className="mx-auto flex items-center gap-1 text-xs"
         >
           <input
+            name="pages"
             type="number"
+            defaultValue={book.pages_read}
             min={0}
             max={book.total_pages ?? undefined}
-            value={pages}
-            onChange={(e) => setPages(+e.target.value)}
-            className="w-16 rounded border p-1 dark:border-slate-600 dark:bg-slate-900"
+            className="w-14 rounded border px-1
+                       dark:border-slate-600 dark:bg-slate-900"
           />
-          <button className="rounded bg-gray-200 px-2 py-1 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600">
-            Save
+          &nbsp;/ {book.total_pages ?? '…'}
+          <button className="rounded bg-slate-200 px-2 py-0.5 hover:bg-slate-300
+                             dark:bg-slate-700 dark:hover:bg-slate-600">
+            ✔
           </button>
         </form>
       )}
 
+      {/* rating / review */}
       {book.status === 'FINISHED' && (
-        <div className="flex items-center justify-between">
-          <RatingStars value={book.rating ?? 0} disabled />
+        <div className="mx-auto flex flex-col items-center gap-1">
+          <StarRating
+            value={book.rating ?? 0}
+            onChange={() => onOpenReview()}
+          />
           <button
             onClick={onOpenReview}
-            className="rounded bg-blue-100 px-3 py-1 text-sm text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-300"
+            className="flex items-center gap-1 text-xs text-blue-600 hover:underline"
           >
-            {book.review ? 'Edit Review' : 'Review'}
+            <PencilSquareIcon className="h-4 w-4" />
+            {book.review ? 'Edit Review' : 'Add Review'}
           </button>
         </div>
       )}
 
+      {/* delete */}
       <button
         onClick={onDelete}
-        className="self-end rounded bg-red-100 p-2 text-red-700 hover:bg-red-200 dark:bg-red-900/40 dark:text-red-300"
-        aria-label="Delete book"
+        className="ml-auto mt-2 flex items-center gap-1 text-xs text-red-600 hover:underline"
       >
-        <Trash2 className="h-4 w-4" />
+        <TrashIcon className="h-4 w-4" />
+        Remove
       </button>
-    </div>
+    </article>
   );
 }

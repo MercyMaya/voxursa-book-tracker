@@ -1,8 +1,14 @@
 /**********************************************************************
- *  Central API helpers (front-end)                                   *
- ********************************************************************/
+ *  Central front-end API helper                                       *
+ *  – combines legacy “PHP” endpoints used by the UI and new REST      *
+ *    endpoints you’re migrating to.                                   *
+ *********************************************************************/
 
-/* ---------- shared types ---------------------------------------- */
+const API_BASE = import.meta.env.VITE_API_BASE ?? ''; // e.g. https://voxursa.com/booktracker/api
+
+/* ------------------------------------------------------------------ */
+/*  Shared domain types                                               */
+/* ------------------------------------------------------------------ */
 
 export type Status = 'TO_READ' | 'READING' | 'FINISHED';
 
@@ -25,52 +31,55 @@ export interface BookCandidate {
   cover?: string;
 }
 
-/* ---------- JWT-aware fetch helper ------------------------------ */
+/* ------------------------------------------------------------------ */
+/*  Token helpers                                                     */
+/* ------------------------------------------------------------------ */
 
-export type AuthFetch = (
-  path: string,
-  init?: RequestInit
-) => Promise<Response>;
+function getToken(): string | null {
+  return localStorage.getItem('token');
+}
+function setToken(t: string | null) {
+  if (t) localStorage.setItem('token', t);
+  else   localStorage.removeItem('token');
+}
+
+/* ------------------------------------------------------------------ */
+/*  JWT-aware fetch wrapper (legacy UI expects this)                   */
+/* ------------------------------------------------------------------ */
+
+export type AuthFetch = (path: string, init?: RequestInit) => Promise<Response>;
 
 export function makeAuthFetch(token: string | null): AuthFetch {
-    return async (path, init = {}) => {
+  return async (path, init = {}) => {
     const headers = new Headers(init.headers ?? {});
     if (token) headers.set('Authorization', `Bearer ${token}`);
     headers.set('Content-Type', 'application/json');
-        const rsp = await fetch(import.meta.env.VITE_API_BASE + path, {
-            ...init,
-            headers,
-          });
-      
-          // if our token is bad/expired, force a log-out
-          if (rsp.status === 401) {
-            localStorage.removeItem('jwt');
-            window.location.replace('/login');
-            throw new Error('Session expired');
-          }
-          return rsp;
+
+    const rsp = await fetch(`${API_BASE}${path}`, { ...init, headers });
+
+    /* If our stored token is bad/expired force a log-out redirect       */
+    if (rsp.status === 401) {
+      setToken(null);
+      window.location.replace('/login');
+      return Promise.reject(new Error('Session expired'));
+    }
+    return rsp;
   };
 }
 
-/* ---------- CRUD helpers for user books ------------------------- */
+/* ------------------------------------------------------------------ */
+/*  “PHP” endpoints used by the bookshelf UI                           */
+/* ------------------------------------------------------------------ */
 
-export const fetchUserBooks = async (
-    fetcher: AuthFetch
-  ): Promise<UserBook[]> => {
-    const rsp = await fetcher('/books/list.php');
-    if (!rsp.ok) {
-      const txt = await rsp.text();          // safest
-      throw new Error(`API ${rsp.status}: ${txt.slice(0, 120)}…`);
-    }
-    return rsp.json();
-  };
+export const fetchUserBooks = async (fetcher: AuthFetch): Promise<UserBook[]> =>
+  fetcher('/books/list.php').then(r => r.json());
 
 export const addBook = (
   fetcher: AuthFetch,
   title: string,
   author: string,
   pages: number,
-  cover: string | null
+  cover: string | null,
 ) =>
   fetcher('/books/add.php', {
     method: 'POST',
@@ -85,8 +94,8 @@ export const addBook = (
 export const updateUserBook = (
   fetcher: AuthFetch,
   patch: Partial<
-    Pick<UserBook, 'status' | 'pages_read' | 'rating' | 'review'>
-  > & { id: number }
+    Pick<UserBook, 'id' | 'status' | 'pages_read' | 'rating' | 'review'>
+  > & { id: number },
 ) =>
   fetcher('/books/update.php', {
     method: 'PATCH',
@@ -96,65 +105,103 @@ export const updateUserBook = (
 export const deleteUserBook = (fetcher: AuthFetch, id: number) =>
   fetcher(`/books/delete.php?id=${id}`, { method: 'DELETE' });
 
-/* ---------- Google Books search --------------------------------- */
-interface GoogleItem {
-    volumeInfo: {
-      title: string;
-      authors?: string[];
-      pageCount?: number;
-      imageLinks?: { thumbnail?: string };
-    };
-  }
-
-
-export async function searchGoogleBooks(
-  q: string
-): Promise<BookCandidate[]> {
-  if (!q) return [];
+/* Google Books quick-search (for Add-Book auto-fill) */
+export async function searchGoogleBooks(q: string): Promise<BookCandidate[]> {
+  if (!q.trim()) return [];
   const data = await fetch(
-    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}`
-  ).then((r) => r.json());
+    `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}`,
+  ).then(r => r.json());
+
   if (!data.items) return [];
-  return (data.items as GoogleItem[]).map((v) => ({
-    title: v.volumeInfo.title,
+  return data.items.map((v: any): BookCandidate => ({
+    title : v.volumeInfo.title,
     author: v.volumeInfo.authors?.[0] ?? '',
-    pages: v.volumeInfo.pageCount,
-    cover: v.volumeInfo.imageLinks?.thumbnail ?? '',
+    pages : v.volumeInfo.pageCount,
+    cover : v.volumeInfo.imageLinks?.thumbnail ?? '',
   }));
 }
 
+/* ------------------------------------------------------------------ */
+/*  New REST-style endpoints you started adding                        */
+/* ------------------------------------------------------------------ */
 
-/* ---------- auth endpoints ------------------------------------ */
-export async function register(email: string, password: string) {
-  const res = await fetch(import.meta.env.VITE_API_BASE + '/register.php', {
-    method: 'POST',
+export async function loginUser(email: string, password: string) {
+  const rsp = await fetch(`${API_BASE}/auth/login`, {
+    method : 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body   : JSON.stringify({ email, password }),
   });
-  if (!res.ok) {
-    const { error } = await res.json();
-    throw new Error(error ?? 'Registration failed');
-  }
+  if (!rsp.ok) throw new Error('Login failed');
+  const data = await rsp.json();
+  if (data.token) setToken(data.token);
+  return data;
 }
 
-
-/* ---------- auth: log-in --------------------------------------- */
-
-export async function loginUser(
+export async function registerUser(
+  name: string,
   email: string,
-  password: string
-): Promise<string> {
-  const rsp = await fetch(import.meta.env.VITE_API_BASE + '/login.php', {
-    method: 'POST',
+  password: string,
+) {
+  const rsp = await fetch(`${API_BASE}/auth/register`, {
+    method : 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body   : JSON.stringify({ name, email, password }),
   });
-
-  if (!rsp.ok) {
-    const { error } = await rsp.json();
-    throw new Error(error ?? 'Login failed');
-  }
-
-  const { token } = (await rsp.json()) as { token: string };
-  return token;
+  if (!rsp.ok) throw new Error('Registration failed');
+  return rsp.json();
 }
+
+/* Generic helper used by the REST functions below */
+async function restFetch<T>(
+  url: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const token = getToken();
+  const headers = new Headers(init.headers ?? {});
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  headers.set('Content-Type', 'application/json');
+
+  const rsp = await fetch(url, { ...init, headers });
+  if (rsp.status === 401) throw new Error('Unauthorized');
+  if (!rsp.ok) throw new Error(`HTTP ${rsp.status}`);
+  return rsp.json();
+}
+
+export async function fetchBooks(): Promise<BookData[]> {
+  return restFetch<BookData[]>(`${API_BASE}/books`);
+}
+
+export interface BookData {
+  id?: number;
+  title: string;
+  author: string;
+  pages?: number;
+  status: 'plan' | 'reading' | 'completed';
+  cover?: string;
+  rating?: number;
+  review?: string;
+}
+
+export function createBook(book: BookData) {
+  return restFetch<BookData>(`${API_BASE}/books`, {
+    method: 'POST',
+    body  : JSON.stringify(book),
+  });
+}
+
+export function updateBook(bookId: number, updates: Partial<BookData>) {
+  return restFetch<BookData>(`${API_BASE}/books/${bookId}`, {
+    method: 'PUT',
+    body  : JSON.stringify(updates),
+  });
+}
+
+export function deleteBook(bookId: number) {
+  return restFetch<void>(`${API_BASE}/books/${bookId}`, { method: 'DELETE' });
+}
+
+/* ------------------------------------------------------------------ */
+/*  Convenience – one default fetcher for components that want it      */
+/* ------------------------------------------------------------------ */
+
+export const authFetch: AuthFetch = makeAuthFetch(getToken());
