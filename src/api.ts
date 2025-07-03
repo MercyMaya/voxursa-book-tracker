@@ -33,22 +33,37 @@ export type AuthFetch = (
 ) => Promise<Response>;
 
 export function makeAuthFetch(token: string | null): AuthFetch {
-  return (path, init = {}) => {
+    return async (path, init = {}) => {
     const headers = new Headers(init.headers ?? {});
     if (token) headers.set('Authorization', `Bearer ${token}`);
     headers.set('Content-Type', 'application/json');
-    return fetch(import.meta.env.VITE_API_BASE + path, {
-      ...init,
-      headers,
-    });
+        const rsp = await fetch(import.meta.env.VITE_API_BASE + path, {
+            ...init,
+            headers,
+          });
+      
+          // if our token is bad/expired, force a log-out
+          if (rsp.status === 401) {
+            localStorage.removeItem('jwt');
+            window.location.replace('/login');
+            throw new Error('Session expired');
+          }
+          return rsp;
   };
 }
 
 /* ---------- CRUD helpers for user books ------------------------- */
 
 export const fetchUserBooks = async (
-  fetcher: AuthFetch
-): Promise<UserBook[]> => fetcher('/books/list.php').then((r) => r.json());
+    fetcher: AuthFetch
+  ): Promise<UserBook[]> => {
+    const rsp = await fetcher('/books/list.php');
+    if (!rsp.ok) {
+      const txt = await rsp.text();          // safest
+      throw new Error(`API ${rsp.status}: ${txt.slice(0, 120)}…`);
+    }
+    return rsp.json();
+  };
 
 export const addBook = (
   fetcher: AuthFetch,
