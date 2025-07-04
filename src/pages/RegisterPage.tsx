@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react';
-import { register } from '../api';
+import { registerUser } from '../api';
 import { useNavigate, Link } from 'react-router-dom';
 
 export default function RegisterPage() {
@@ -16,7 +16,7 @@ export default function RegisterPage() {
     setBusy(true);
     setErr(null);
     try {
-      await register({ name, email, password: pw });
+      await registerUser(name, email, pw);
       navigate('/login', { replace: true, state: { regOk: true } });
     } catch (e: unknown) {
       const msg =

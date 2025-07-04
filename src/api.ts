@@ -4,7 +4,7 @@
  *    endpoints you’re migrating to.                                   *
  *********************************************************************/
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? ''; // e.g. https://voxursa.com/booktracker/api
+export const API_BASE: string = import.meta.env.VITE_API_BASE; // e.g. https://voxursa.com/booktracker/api
 
 /* ------------------------------------------------------------------ */
 /*  Shared domain types                                               */
@@ -105,15 +105,28 @@ export const updateUserBook = (
 export const deleteUserBook = (fetcher: AuthFetch, id: number) =>
   fetcher(`/books/delete.php?id=${id}`, { method: 'DELETE' });
 
-/* Google Books quick-search (for Add-Book auto-fill) */
+/** ------------------------------------------------------------------
+ *  Google Books quick-search (for Add-Book auto-fill)
+ * ----------------------------------------------------------------- */
 export async function searchGoogleBooks(q: string): Promise<BookCandidate[]> {
   if (!q.trim()) return [];
+
+  interface GoogleVolume {
+    volumeInfo: {
+      title: string;
+      authors?: string[];
+      pageCount?: number;
+      imageLinks?: { thumbnail?: string };
+    };
+  }
+
   const data = await fetch(
     `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}`,
   ).then(r => r.json());
 
-  if (!data.items) return [];
-  return data.items.map((v: any): BookCandidate => ({
+  if (!Array.isArray(data.items)) return [];
+
+  return (data.items as GoogleVolume[]).map(v => ({
     title : v.volumeInfo.title,
     author: v.volumeInfo.authors?.[0] ?? '',
     pages : v.volumeInfo.pageCount,
