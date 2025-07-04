@@ -1,50 +1,77 @@
-/* eslint-disable react-refresh/only-export-components */
+/* ------------------------------------------------------------------ *
+ *  AuthContext – JWT / session handling                              *
+ * ------------------------------------------------------------------ */
+
 import {
   createContext,
+  useContext,
   useState,
-  useCallback,
   useMemo,
   type ReactNode,
 } from 'react';
 import { makeAuthFetch, type AuthFetch } from '../api';
 
-/* ---------- context shape ------------------------------------- */
-interface AuthCtx {
+/* ------------------------------------------------------------------ *
+ *  Types                                                              *
+ * ------------------------------------------------------------------ */
+
+export type AuthCtx = {
   token: string | null;
+  /** Store token in state + localStorage */
   login: (t: string) => void;
+  /** Remove token from both places */
   logout: () => void;
+  /** Fetch helper that automatically adds Bearer token */
   authFetch: AuthFetch;
+};
+
+/* ------------------------------------------------------------------ *
+ *  Create context                                                     *
+ * ------------------------------------------------------------------ */
+
+const AuthContext = createContext<AuthCtx | null>(null);
+
+/* ------------------------------------------------------------------ *
+ *  Hook – the *only* safe way to consume the context                  *
+ * ------------------------------------------------------------------ */
+/* eslint-disable-next-line react-refresh/only-export-components */
+export function useAuth(): AuthCtx {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth() must be used inside <AuthProvider>');
+  return ctx;
 }
 
-/* ---------- context instance ---------------------------------- */
-export const AuthContext = createContext<AuthCtx | null>(null);
+/* ------------------------------------------------------------------ *
+ *  Provider                                                           *
+ * ------------------------------------------------------------------ */
 
-/* ---------- provider ------------------------------------------ */
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(
-    () => localStorage.getItem('jwt') ?? null
-  );
+interface ProviderProps {
+  children: ReactNode;
+}
 
-  const authFetch: AuthFetch = useMemo(
-    () => makeAuthFetch(token),
-    [token]
-  );
+export function AuthProvider({ children }: ProviderProps) {
+  /* ----- token state -------------------------------------------- */
+  const [token, setToken] = useState<string | null>(() => {
+    // restore token (if any) on first render
+    return localStorage.getItem('token');
+  });
 
-  const login = useCallback((t: string) => {
-    localStorage.setItem('jwt', t);
+  /* ----- login / logout helpers --------------------------------- */
+  const login = (t: string) => {
+    localStorage.setItem('token', t);
     setToken(t);
-  }, []);
+  };
 
-  const logout = useCallback(() => {
-    localStorage.removeItem('jwt');
+  const logout = () => {
+    localStorage.removeItem('token');
     setToken(null);
-  }, []);
+  };
 
-  return (
-    <AuthContext.Provider value={{ token, login, logout, authFetch }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  /* ----- auth-aware fetch --------------------------------------- */
+  const authFetch = useMemo<AuthFetch>(() => makeAuthFetch(token), [token]);
+
+  /* ----- context value ------------------------------------------ */
+  const value: AuthCtx = { token, login, logout, authFetch };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
-
-export default AuthProvider;
